@@ -1,0 +1,213 @@
+#include<iostream>
+#include<stdio.h>
+#include<cstdlib>
+#include <unistd.h>
+#include<cstring>
+#include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/in.h>
+#include<signal.h>
+#include<sys/shm.h>
+#include<unistd.h>
+#define BUFMAX 1024
+#define FILENAME "share.txt"
+#define SERVER_PORT 6666
+
+struct packet{//包格式
+    int len;//总长度
+    char name[16];//用户用户名
+    char buf[BUFMAX];//消息内容
+};
+
+void func(int flag){
+    std::cout<<"write进程退出"<<std::endl;
+    exit(0);
+}
+
+void test(pid_t pid,int num){
+    if(num<=0){
+        if(num==0){
+            std::cout<<"read进程退出"<<std::endl;
+            kill(pid,SIGUSR1);
+            exit(0);
+        }
+        else{
+            std::cout<<"num<0错误"<<std::endl;
+            exit(0);
+        }
+    }
+}
+
+//num=(int)readn(connectfd,pack,4);
+ssize_t readn(int fd, void  *buf, size_t count){
+    ssize_t nleft=count;
+    ssize_t nread;
+    char *bufp=(char *)buf;
+    
+    while(nleft>0){
+        if( (nread=read(fd,bufp,nleft))<0 ){
+            std::cout<<"连接中断"<<std::endl;
+            return 0;
+        }else if (nread==0){
+            break;
+        }else{
+            nleft-=nread;
+            bufp+=nread;
+        }
+    }
+    return count;
+}
+
+ssize_t writen(int fd, void *buf, size_t count){
+    ssize_t nleft=count;
+    ssize_t nwrite;
+    char *bufp=(char *)buf;
+    
+    while(nleft>0){
+        nwrite=write(fd,bufp,nleft);
+        if(nwrite<=0){
+            if(errno==EINTR)
+                nwrite=0;
+            else
+                return -1;
+        }
+        nleft-=nwrite;
+        bufp+=nwrite;
+    }
+    return count;
+}
+
+int main(){
+    std::cout<<"监听..."<<std::endl;
+    FILE *fp;
+    fp=fopen(FILENAME,"rb");
+    if(fp==NULL)
+        fp=fopen(FILENAME,"wb");
+    fclose(fp);
+    
+    int shmid;
+    void * shm;
+    struct packet * pack;
+    shmid = shmget((key_t)1234, sizeof(struct packet), 0666 | IPC_CREAT);
+    if (shmid ==-1){
+        std::cout<<"共享内存创建失败"<<std::endl;
+        exit(0);
+    }
+    shm = shmat(shmid,  (void*)0, 0);
+    memset(shm,0,sizeof(packet));
+//    if(shm!=(void *)-1)
+//        std::cout<<"共享内存格式化成功"<<std::endl;
+    pack=(struct packet *)shmat(shmid,  (void*)0, 0);
+    if(pack==(void *)-1)
+        std::cout<<"shmat失败"<<std::endl;
+    
+    
+    char objname[16]={0};
+    int num,nlen;
+    pid_t pid;
+    int listenfd,connectfd;
+    struct sockaddr_in servaddr;
+    memset(&servaddr,0,sizeof(servaddr));
+    servaddr.sin_family=AF_INET;
+    servaddr.sin_addr.s_addr=htonl(INADDR_ANY);
+    servaddr.sin_port=htons(3389);
+    if( (listenfd=socket(AF_INET,SOCK_STREAM,0))<0 )
+        std::cout<<"socket错误"<<std::endl;
+    
+    bzero(&servaddr, sizeof(servaddr));//置字节字符串前n个字节为零且包括‘\0’
+    servaddr.sin_family = AF_INET;//协议簇：TCP/IP – IPv4
+    servaddr.sin_port = htons(SERVER_PORT);//端口号（主机字节序转为网络字节序）
+    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);//ip地址
+    
+    // setsockopt解决在close之后会有一个WAIT_TIME导致bind失败的问题
+    int val = 1;
+    int ret = setsockopt(listenfd,SOL_SOCKET,SO_REUSEADDR,(void *)&val,sizeof(int));
+    if(ret == -1){
+        printf("setsockopt");
+        exit(1);
+    }
+    
+    if( bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+        std::cout<<"bind错误"<<std::endl;
+    
+    
+    if( listen(listenfd,10)==-1 )
+        std::cout<<"listen 错误"<<std::endl;
+    
+    while(1){
+        if( (connectfd=accept(listenfd,NULL,NULL))==-1)
+            std::cout<<"accept错误"<<std::endl;
+
+        pid=fork();
+        if(pid==0){    //子进程 负责连接
+            close(listenfd);
+            read(connectfd,objname,16);        // 读取对方名字
+            std::cout<<objname<<"已连接"<<std::endl;
+            pid=fork();
+            if(pid>0){  //父进程 接受数据
+                pack=(struct packet *)shmat(shmid,  (void*)0, 0);
+                if(pack==(void *)-1)
+                    std::cout<<"shmat失败"<<std::endl;
+                
+                while(1){
+                    num=(int)readn(connectfd,pack,4);//接收长度(packet类的len)
+                    test(pid,num);
+                    nlen=ntohl(pack->len);
+                    num=(int)readn(connectfd,pack->name,nlen+16);//接收用户名和消息(packet类的name和buf)
+                    test(pid,num);
+                    if ((int)strlen(pack->buf)!=0) {//判断包不空时才打印，防止打印出只有名字没有信息的行。好奇怪，加个(int)才可以，没加的时候啥也不打印。
+                        std::cout<<pack->name<<": "<<pack->buf<<std::endl;
+                    }
+                    fp=fopen(FILENAME,"ab");
+                    if(fp==NULL)
+                        std::cout<<"历史记录txt打开失败"<<std::endl;
+                    if(fwrite(pack,nlen+20,1,fp)==0)
+                        std::cout<<"fwrite错误"<<std::endl;
+                    fclose(fp);
+                    
+                    memset(pack->buf,0,nlen);//2.只有加上这一句，上一次发的消息才有被清除掉...
+                }
+            }
+            if(pid==0){ //子进程 发送数据
+                signal(SIGUSR1,func);
+                char name_tmp[16]={0};
+                char buf_tmp[1024]={0};
+                pack=(struct packet *)shmat(shmid,  (void*)0, 0);
+                if(pack==(void *)-1)
+                    std::cout<<"shmat失败"<<std::endl;
+                while(1){//怎么退出循环？
+                    while(1){//若还没有收到数据，则循环等待
+                        sleep(0.1);
+                        if( strcmp(objname,pack->name)!=0 ){
+                            if(  strcmp(name_tmp,pack->name)||strcmp(buf_tmp,pack->buf) ){
+                                break;
+                            }
+                        }
+                    }
+                    strcpy(name_tmp,pack->name);
+                    strcpy(buf_tmp,pack->buf) ;
+                    nlen=(int)strlen(pack->buf)+1;    //  有'\0'
+                    int zz=(int)writen(connectfd,pack,nlen+20);//转发给客户端
+//                    memset(pack->buf,0,nlen);//1.这里清空导致打印不出数据内容...
+//                    break;
+                    if(zz<=0){
+                        std::cout<<"*** write 失败 ***"<<std::endl;
+                        break;//
+                    }
+                }
+//                memset(pack->buf,0,nlen);//3.处理完本次接受到的信息后清空pack?
+            }
+            else
+                std::cout<<"2pid错误"<<std::endl;
+            exit(0);
+        }
+        else if(pid>1){    //父进程 继续监听
+            close(connectfd);
+        }
+        else{
+            std::cout<<"1pid错误"<<std::endl;
+            exit(0);
+        }
+    }
+    return 0;
+}
