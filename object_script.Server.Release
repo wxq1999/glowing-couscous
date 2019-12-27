@@ -1,0 +1,14 @@
+INPUT(
+./release\Main.o
+./release\Config.o
+./release\Const.o
+./release\Protocol.o
+./release\Result.o
+./release\MainWindow.o
+./release\Server.o
+./release\Client.o
+./release\qrc_Resource.o
+./release\moc_Server.o
+./release\moc_MainWindow.o
+./release\moc_Client.o
+);

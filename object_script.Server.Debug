@@ -1,0 +1,14 @@
+INPUT(
+./debug\Main.o
+./debug\Config.o
+./debug\Const.o
+./debug\Protocol.o
+./debug\Result.o
+./debug\MainWindow.o
+./debug\Server.o
+./debug\Client.o
+./debug\qrc_Resource.o
+./debug\moc_Server.o
+./debug\moc_MainWindow.o
+./debug\moc_Client.o
+);
