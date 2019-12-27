@@ -1,0 +1,36 @@
+<RCC>
+    <qresource prefix="/qm">
+        <file>Language_zh_CN.qm</file>
+    </qresource>
+    <qresource prefix="/png">
+        <file>res/00.png</file>
+        <file>res/01.png</file>
+        <file>res/02.png</file>
+        <file>res/03.png</file>
+        <file>res/04.png</file>
+        <file>res/05.png</file>
+        <file>res/06.png</file>
+        <file>res/07.png</file>
+        <file>res/08.png</file>
+        <file>res/09.png</file>
+        <file>res/10.png</file>
+        <file>res/11.png</file>
+        <file>res/12.png</file>
+        <file>res/13.png</file>
+        <file>res/14.png</file>
+        <file>res/15.png</file>
+        <file>res/16.png</file>
+        <file>res/17.png</file>
+        <file>res/18.png</file>
+        <file>res/19.png</file>
+        <file>res/20.png</file>
+        <file>res/21.png</file>
+        <file>res/22.png</file>
+        <file>res/23.png</file>
+        <file>res/ButtonAddFriend.png</file>
+        <file>res/ButtonLogoff.png</file>
+        <file>res/ButtonLogon.png</file>
+        <file>res/ButtonMChat.png</file>
+        <file>res/ButtonReg.png</file>
+    </qresource>
+</RCC>
